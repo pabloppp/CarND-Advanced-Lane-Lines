@@ -51,7 +51,7 @@ I decided to save those to [calibration_matrix.p](src/calibration_matrix.p) to b
 
 I also created the `setup_undistort` function that loads in memory those parameters and returns a lambda that we can call to aply the undistort easily.
 
-Here's a comparison of the undistortion applied to te chessboard:
+Here's a comparison of the undistortion applied to the chessboard:
 ![alt text][image1]
 
 ### Pipeline (single images)
@@ -59,7 +59,7 @@ Here's a comparison of the undistortion applied to te chessboard:
 #### 1. Provide an example of a distortion-corrected image.
 I created the [test calibration matrix.py](src/test_calibration_matrix.py) to be able to see how this correction affects the test images.
 
-If we apply the distortion correction to the road images, te effect is much less noticeable, but we know that any measurement performed will be much more accurate:
+If we apply the distortion correction to the road images, the effect is much less noticeable, but we know that any measurement performed will be much more accurate:
 
 ![alt text][image2]
 
@@ -70,7 +70,7 @@ Check also [utils/highlight lane.py](src/utils/highlight_lane.py) to see the thr
 
 I did a lof of testing around this step, because it's the more important of the whole pipeline. If we manage to filter out everything except for the lane lines, the rest of the pipeline will work seamlessly.
 
-After doing some research I decided to attempt combinig ALL the learn filters, I used the HSL color space to filter the **white** and **yellow** from te images, this will give us a good enough threshold, working 90% of the time. But in order to detect the lines the remaining 10% of the time, I did a combination of X/Y Sobel threshold, Absolute Sobel Threshold and Angular Sobel threshold (the X Threshold gives the best results, the rest are just there to slightly improve the results).
+After doing some research I decided to attempt combinig ALL the learn filters, I used the HSL color space to filter the **white** and **yellow** from the images, this will give us a good enough threshold, working 90% of the time. But in order to detect the lines the remaining 10% of the time, I did a combination of X/Y Sobel threshold, Absolute Sobel Threshold and Angular Sobel threshold (the X Threshold gives the best results, the rest are just there to slightly improve the results).
 
 After tweaking the values for a long time attempting to get the best results in all the test images, this is the result I obtained:
 
@@ -111,7 +111,7 @@ This part, even though it's not the most crucial for lane detection, was the har
 I didn't change much how the example code was working, I extracted the relevant utility functions (like `_find_window_centroids`) and used them inside the `detect_lanes` functions.
 I decided to use a window of 70x90 with a margin of 120, in order to detect with accuracy the right white lane (not continuous). Because of the big height of the window, we will find fewer points to generate the polynomials, but in exchange we will filter out a lot of the noise from the thresholded images.
 
-I also added a vertical threshold of 2000 / window_dims[1] to avoid te big blobs (like when the lane is white)
+I also added a vertical threshold of 2000 / window_dims[1] to avoid the big blobs (like when the lane is white)
 
 My first approach was very simple, it wasn't until the end that I added three things to improve the detected lanes (and they work very well):
 - First of all, as sugested in the excercice, I saved the last polynomial detected to speed up the following calculations (because we already know were the lane is, we can use this to look for the lane in the next frame).
@@ -136,7 +136,7 @@ See also [test highlight lane.py](src/test_highlight_lane.py) and  and [utils/la
 - Extract threshold and bird-eye view using `pipeline(img)`
 - Detect the lanes and generate the highlight polygon using `detect_lanes(img)`
 - Unwarp the image from bird-eye to persoecrtive using `warp(img)` using the inverse warp matrix
-- combine the original undistorted image + the highlight polygon with `cv2.addWeighted` to add some transparency and be able to see te road behind.
+- combine the original undistorted image + the highlight polygon with `cv2.addWeighted` to add some transparency and be able to see the road behind.
 
 This is the result:
 
