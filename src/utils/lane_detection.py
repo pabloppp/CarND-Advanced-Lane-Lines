@@ -1,6 +1,8 @@
 import numpy as np
 import cv2
 
+from src.utils.lane import Lane
+
 
 def _window_mask(width, height, img, center, level):
     output = np.zeros_like(img)
@@ -9,18 +11,22 @@ def _window_mask(width, height, img, center, level):
     return output
 
 
-def _find_window_centroids(image, window_width, window_height, margin, vertical_threshold):
+def _find_window_centroids(image, window_width, window_height, margin, vertical_threshold, lane):
     window_centroids = []  # Store the (left,right) window centroid positions per level
     window = np.ones(window_width)  # Create our window template that we will use for convolutions
 
     # First find the two starting positions for the left and right lane by using np.sum to get the vertical image slice
     # and then np.convolve the vertical image slice with the window template 
 
-    # Sum quarter bottom of image to get slice, could use a different ratio
-    l_sum = np.sum(image[int(3 * image.shape[0] / 4):, :int(image.shape[1] / 2)], axis=0)
-    l_center = np.argmax(np.convolve(window, l_sum)) - window_width / 2
-    r_sum = np.sum(image[int(3 * image.shape[0] / 4):, int(image.shape[1] / 2):], axis=0)
-    r_center = np.argmax(np.convolve(window, r_sum)) - window_width / 2 + int(image.shape[1] / 2)
+    if lane.detected is False:
+        # Sum quarter bottom of image to get slice, could use a different ratio
+        l_sum = np.sum(image[int(2 * image.shape[0] / 3):, :int(image.shape[1] / 2)], axis=0)
+        l_center = np.argmax(np.convolve(window, l_sum)) - window_width / 2
+        r_sum = np.sum(image[int(2 * image.shape[0] / 3):, int(image.shape[1] / 2):], axis=0)
+        r_center = np.argmax(np.convolve(window, r_sum)) - window_width / 2 + int(image.shape[1] / 2)
+    else:
+        l_center = np.clip(lane.left_curve(image.shape[0] - 1), 0, image.shape[1] - 1)
+        r_center = np.clip(lane.right_curve(image.shape[0] - 1), 0, image.shape[1] - 1)
 
     # Add what we found for the first layer
     # window_centroids.append((l_center, r_center))
@@ -53,6 +59,11 @@ def _find_window_centroids(image, window_width, window_height, margin, vertical_
 
 
 def _plot_masks(l_center, r_center):
+    if len(l_center) == 0:
+        l_center = np.array([[1, 0], [10, 0]])
+    if len(r_center) == 0:
+        r_center = np.array([[1, 0], [10, 0]])
+
     leftx = [i[0] for i in l_center]
     lefty = [i[1] for i in l_center]
     rightx = [i[0] for i in r_center]
@@ -67,14 +78,14 @@ def _plot_masks(l_center, r_center):
     return left_fit, right_fit, left_curve, right_curve
 
 
-def _lane_shape(image_width, left_curve, right_curve):
+def _lane_shape(image_width, left_curve, right_curve, lane):
     left_fitx = np.empty([image_width])
     right_fitx = np.empty([image_width])
     ploty = np.empty([image_width])
     for i in range(0, image_width):
         ploty[i] = i
-        left_fitx[i] = left_curve(i)
-        right_fitx[i] = right_curve(i)
+        left_fitx[i] = lane.left_curve_smooth(i)  # left_curve(i)
+        right_fitx[i] = lane.right_curve_smooth(i)  # right_curve(i)
 
     pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
     pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
@@ -82,6 +93,11 @@ def _lane_shape(image_width, left_curve, right_curve):
 
 
 def _curve_radius(y_eval, l_center, r_center):
+    if len(l_center) == 0:
+        l_center = np.array([[1, 0], [10, 0]])
+    if len(r_center) == 0:
+        r_center = np.array([[1, 0], [10, 0]])
+
     leftx = [i[0] for i in l_center]
     lefty = [i[1] for i in l_center]
     rightx = [i[0] for i in r_center]
@@ -107,11 +123,16 @@ def _offcenter_position(y_eval, image_width, left_curve, right_curve):
     return ((left_curve(y_eval) + (right_curve(y_eval) - left_curve(y_eval)) / 2) - (image_width / 2)) * xm_per_pix
 
 
-def detect_lanes(image, window_dims=(40, 45), margin=180, shape_only=False):
-    vertical_threshold = 2500 / window_dims[1]
+def curv_error(curvatures):
+    return abs(curvatures[0] - curvatures[1]) / ((curvatures[0] + curvatures[1]) / 2)
+
+
+def detect_lanes(image, window_dims=(70, 90), margin=120, lane=Lane()):
+    vertical_threshold = 2000 / window_dims[1]
 
     # image = image[:, :, 0]
-    window_centroids = _find_window_centroids(image, window_dims[0], window_dims[1], margin, vertical_threshold)
+    window_centroids = _find_window_centroids(image, window_dims[0], window_dims[1], margin, vertical_threshold, lane)
+    lane.detected = False
 
     if len(window_centroids) > 0:
         l_points = np.zeros_like(image)
@@ -132,6 +153,17 @@ def detect_lanes(image, window_dims=(40, 45), margin=180, shape_only=False):
                 r_center.append((image.shape[0] - ((level + 0.5) * window_dims[1]), window_centroids[level][1]))
 
         left_fit, right_fit, left_curve, right_curve = _plot_masks(np.array(l_center), np.array(r_center))
+
+        curvatures = _curve_radius(image.shape[0] - 1, np.array(l_center, dtype=np.float32),
+                                   np.array(r_center, dtype=np.float32))
+        offcenter = _offcenter_position(image.shape[0] - 1, image.shape[1], left_curve, right_curve)
+        if curv_error(curvatures) < 1.8:
+            lane.detected = True
+            lane.left_curve = left_curve
+            lane.left_curve_history.append(left_curve)
+            lane.right_curve = right_curve
+            lane.right_curve_history.append(right_curve)
+
         for y in range(0, image.shape[0]):
             l_points[y, int(left_curve(y)) - 5:int(left_curve(y)) + 5] = 255
             r_points[y, int(right_curve(y)) - 5:int(right_curve(y)) + 5] = 255
@@ -142,17 +174,14 @@ def detect_lanes(image, window_dims=(40, 45), margin=180, shape_only=False):
 
         output = cv2.addWeighted(warpage, 1, template, 0.5, 0.0)  # overlay the orignal road image with window results
 
-        if shape_only:
-            output = np.dstack((zero_channel, zero_channel, zero_channel))
-            pts = _lane_shape(image.shape[0], left_curve, right_curve)
-            cv2.fillPoly(output, np.int32([pts]), (0, 255, 0))
+        output_shape = np.dstack((zero_channel, zero_channel, zero_channel))
+        pts = _lane_shape(image.shape[0], left_curve, right_curve, lane)
+        cv2.fillPoly(output_shape, np.int32([pts]), (0, 255, 0))
 
-        curvatures = _curve_radius(image.shape[0] - 1, np.array(l_center, dtype=np.float32),
-                                   np.array(r_center, dtype=np.float32))
-        offcenter = _offcenter_position(image.shape[0] - 1, image.shape[1], left_curve, right_curve)
     else:
         curvatures = (0.0, 0.0)
         offcenter = 0.0
         output = np.array(cv2.merge((image, image, image)), np.uint8)
+        output_shape = np.array(cv2.merge((image, image, image)), np.uint8)
 
-    return output, curvatures, offcenter
+    return output, output_shape, curvatures, offcenter

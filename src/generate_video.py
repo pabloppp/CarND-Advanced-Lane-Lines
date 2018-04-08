@@ -2,7 +2,7 @@ from moviepy.editor import VideoFileClip, CompositeVideoClip
 
 from src.utils.lane_processor import LaneProcessor
 
-clip = VideoFileClip("../project_video.mp4")  # .subclip(0, 10)
+clip = VideoFileClip("../project_video.mp4")  # .subclip(15, 30)
 laneProcessor = LaneProcessor()
 
 undistorted = clip.fl_image(laneProcessor.undistort)

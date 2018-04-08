@@ -2,10 +2,10 @@ import cv2
 import matplotlib.pyplot as plt
 from src.utils.highlight_lane import highlight
 
-test_img = cv2.imread('../test_images/test1.jpg')
+test_img = cv2.imread('../test_images/test8.jpg')
 combined, undistorted, lanes = highlight(test_img)
 
-# cv2.imwrite('../output_images/test4_highlighted.jpg', cv2.cvtColor(combined, cv2.COLOR_RGB2BGR))
+# cv2.imwrite('../output_images/test8_highlighted.jpg', cv2.cvtColor(combined, cv2.COLOR_RGB2BGR))
 
 f, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
 ax1.imshow(undistorted)

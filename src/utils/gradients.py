@@ -2,13 +2,15 @@ import numpy as np
 import cv2
 
 
-def minmax(x):
+def minmax(x, x_abs=None):
+    if x_abs is None:
+        x_abs = x
     return (x - np.min(x)) / (np.max(x) - np.min(x))
 
 
 def threshold(img, thresh=(0, 255)):
     mask = np.zeros_like(img)
-    mask[(img > thresh[0]) & (img < thresh[1])] = 1
+    mask[(img >= thresh[0]) & (img <= thresh[1])] = 1
     return mask
 
 
@@ -17,8 +19,8 @@ def abs_sobel_thresh(img, orient='x', sobel_kernel=3, thresh=(0, 255)):
         sobel = cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
     else:
         sobel = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
-    sobel = np.absolute(sobel)
-    sobel = np.uint8(255 * minmax(sobel))
+    sobel_abs = np.absolute(sobel)
+    sobel = np.uint8(255 * minmax(sobel, sobel_abs))
     mask = np.zeros_like(sobel)
     mask[(sobel > thresh[0]) & (sobel < thresh[1])] = 1
     return mask

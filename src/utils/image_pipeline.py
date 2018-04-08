@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 from src.utils.calibration import setup_undistort
-from src.utils.gradients import abs_sobel_thresh, threshold, dir_threshold
+from src.utils.gradients import abs_sobel_thresh, threshold, dir_threshold, mag_thresh
 
 undistort = setup_undistort("calibration_matrix.p")
 
@@ -10,9 +10,9 @@ undistort = setup_undistort("calibration_matrix.p")
 def birds_eye_view(image, debug=False):
     src = np.float32([
         [215, 706],
-        [605, 444],
-        [676, 444],
-        [1093, 706],
+        [580, 460],
+        [704, 460],
+        [1094, 706],
     ])
 
     dst = np.float32([
@@ -52,34 +52,33 @@ def pipeline(image, debug=False):
 
 
 def thresholded_binary_image(image):
-    image_yuv = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
+    image_lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
     image_hls = cv2.cvtColor(image, cv2.COLOR_BGR2HLS)
-    image_y = image_yuv[:, :, 0]
-    image_u = image_yuv[:, :, 1]
-    image_v = image_yuv[:, :, 2]
-    image_h = image_hls[:, :, 0]
-    image_l = image_hls[:, :, 1]
-    image_s = image_hls[:, :, 2]
+    image_lab_l = image_lab[:, :, 0]
+    image_hls_h = image_hls[:, :, 0]
+    image_hls_l = image_hls[:, :, 1]
+    image_hls_s = image_hls[:, :, 2]
 
-    image_y_threshold = threshold(image_y, thresh=(205, 255))
-    image_y_sobel_threshold = abs_sobel_thresh(image_y, orient="x", thresh=(110, 255))
+    image_lab_l_sobel_x = abs_sobel_thresh(image_lab_l, orient='x', sobel_kernel=15, thresh=(20, 60))
 
-    image_u_threshold = threshold(image_u, thresh=(50, 115))
+    image_lab_l_sobel_y = abs_sobel_thresh(image_lab_l, orient='y', sobel_kernel=15, thresh=(20, 120))
+    image_lab_l_sobel_mag = mag_thresh(image_lab_l, sobel_kernel=15, thresh=(110, 130))
+    image_lab_l_sobel_dir = dir_threshold(image_lab_l, sobel_kernel=15, thresh=(np.pi / 4, np.pi / 2))
 
-    image_v_threshold = threshold(image_v, thresh=(150, 255))
-    image_v_low_threshold = threshold(image_v, thresh=(0, 125))
+    image_hls_h_white = threshold(image_hls_h, thresh=(0, 255))
+    image_hls_l_white = threshold(image_hls_l, thresh=(200, 255))
+    image_hls_s_white = threshold(image_hls_s, thresh=(0, 255))
 
-    # image_h_low_threshold = threshold(image_h, thresh=(0, 160))
+    image_hls_h_yellow = threshold(image_hls_h, thresh=(15, 35))
+    image_hls_l_yellow = threshold(image_hls_l, thresh=(30, 205))
+    image_hls_s_yellow = threshold(image_hls_s, thresh=(85, 255))
 
-    image_l_threshold = threshold(image_l, thresh=(200, 255))
-
-    image_s_threshold = threshold(image_s, thresh=(140, 255))
-
-    color_binary = np.zeros_like(image_s_threshold)
+    color_binary = np.zeros_like(image_lab_l_sobel_x)
     color_binary[
-        ((image_s_threshold >= 1) | (image_y_threshold >= 1) | (image_y_sobel_threshold >= 1) |
-         (image_u_threshold >= 1) | (image_v_threshold >= 1) | (image_l_threshold >= 1)) &
-        (image_v_low_threshold < 1)  # & (image_h_low_threshold >= 1)
+        (image_lab_l_sobel_x == 1) |
+        ((image_lab_l_sobel_y == 1) & (image_lab_l_sobel_mag == 1) & (image_lab_l_sobel_dir == 1)) |
+        ((image_hls_h_white == 1) & (image_hls_l_white == 1) & (image_hls_s_white == 1)) |
+        ((image_hls_h_yellow == 1) & (image_hls_l_yellow == 1) & (image_hls_s_yellow == 1))
         ] = 1
 
     return color_binary
