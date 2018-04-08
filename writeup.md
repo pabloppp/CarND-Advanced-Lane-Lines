@@ -24,6 +24,8 @@ The goals / steps of this project are the following:
 [image5]: ./output_images/pipeline_comparison.jpg "threshold+ birdseye"
 [image6]: ./output_images/lanes_comparison.jpg "lane detection"
 [image7]: ./output_images/highlighted_comparison.jpg "lane highlight"
+[image8]: ./output_images/video_preview.gif "video preview"
+
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
 
@@ -70,7 +72,8 @@ Check also the method `thresholded_binary_image` in [utils/image pipeline.py](sr
 
 I did a lof of testing around this step, because it's the more important of the whole pipeline. If we manage to filter out everything except for the lane lines, the rest of the pipeline will work seamlessly.
 
-After doing some research I decided to attempt combinig ALL the learn filters, I used the HSL color space to filter the **white** and **yellow** from the images, this will give us a good enough threshold, working 90% of the time. But in order to detect the lines the remaining 10% of the time, I did a combination of X/Y Sobel threshold, Absolute Sobel Threshold and Angular Sobel threshold (the X Threshold gives the best results, the rest are just there to slightly improve the results).
+After doing some research I decided to attempt combinig ALL the learnt filters, I used the HSL color space to filter the **white** and **yellow** from the images, this will give us a good enough threshold, working 90% of the time.  
+But in order to detect the lines the remaining 10% of the time, I extracted the L in LAB colors spaced and did a combination of X/Y Sobel threshold, Absolute Sobel Threshold and Angular Sobel threshold (the X Threshold gives the best results, the rest are just there to slightly improve the results).
 
 After tweaking the values for a long time attempting to get the best results in all the test images, this is the result I obtained:
 
@@ -83,7 +86,7 @@ You can notice there's still some noise on the lanes, this was necessary in orde
 I created the [test birds eye view.py](src/test_birds_eye_view.py) to be able to see how this perspective transform affects the test images. 
 Check also the function `birds_eye_view` in [utils/image pipeline.py](src/utils/image_pipeline.py) to see the transformation shapes I used.
 
-This code is very simple, I just carefuly found the position of 4 pixels in the image that formed a parallelogram contaning the lane and translated them to a fixed-shaped rectangle using the function `cv2.getPerspectiveTransform` to generate the tranformation matrix (I also generated the inverse matrix in order to unwarp the image for lane projection later.)
+This code is very simple, I just carefuly found the position of 4 pixels in a straing-lane image that formed a parallelogram contaning the lane and translated them to a fixed-shaped rectangle using the function `cv2.getPerspectiveTransform` to generate the tranformation matrix (I also generated the inverse matrix in order to unwarp the image for lane projection later.)
 
 The pixel positions I used are:
 
@@ -106,17 +109,18 @@ And here is the same transformation applied to a thresholded image (I also drew 
 I created the [test lane detection.py](src/test_lane_detection.py) to be able to see how the lane detectionworks on test images. 
 Check also [utils/lane detection.py](src/utils/lane_detection.py) to see the full lane detection code.
 
-This part, even though it's not the most crucial for lane detection, was the hardes to understand. I wen through the example code a few times and did some research online until I felt confortable enough to implement it myself.
+This part, even though it's not the most crucial for lane detection, was the hardest to understand. I wen through the example code a few times and did some research online until I felt confortable enough to implement it myself.
 
 I didn't change much how the example code was working, I extracted the relevant utility functions (like `_find_window_centroids`) and used them inside the `detect_lanes` functions.
-I decided to use a window of 70x90 with a margin of 120, in order to detect with accuracy the right white lane (not continuous). Because of the big height of the window, we will find fewer points to generate the polynomials, but in exchange we will filter out a lot of the noise from the thresholded images.
+I decided to use a window of 70x90 with a margin of 120, in order to detect with accuracy the right white lane (not continuous).  
+Because of the big height of the window, we will find fewer points to generate the polynomials, but in exchange we will filter out a lot of the noise from the thresholded images.
 
 I also added a vertical threshold of 2000 / window_dims[1] to avoid the big blobs (like when the lane is white)
 
 My first approach was very simple, it wasn't until the end that I added three things to improve the detected lanes (and they work very well):
 - First of all, as sugested in the excercice, I saved the last polynomial detected to speed up the following calculations (because we already know were the lane is, we can use this to look for the lane in the next frame).
 - Second I did some error discrimination: if the radius detected from the 2 lines was very different (an error of 180% or more) I discard this reading and use the latests correct lane reading for following detections.
-- Finally, I decided to smooth the detected lane by doing an average of the correctly detected lane in the last 4 frames (asuming that the video has 30 frames per second, this adds a small lag of 130ms so if the card did a very unexpected turn, it will take this time for it to adapt to the road, but for this exercice it's ok)
+- Finally, I decided to smooth the detected lane by doing an average of the correctly detected lane in the last 4 frames (asuming that the video has 30 frames per second, this adds a small lag of 130ms so if the car did a very unexpected movement, it will take that long for it to adapt again to the road, but for this exercice it's ok)
 
 Here's an example of the detected lanes in a test image:
 ![alt text][image6]
@@ -131,7 +135,7 @@ I didn't change much from the proposed implementation. I used the proposed corre
 
 Check the method `_lane_shape ` in [utils/lane detection.py](src/utils/lane_detection.py) to see the full implementation of how the lane polygon is generated.
 
-See also [test highlight lane.py](src/test_highlight_lane.py) and  and [utils/lane detection.py](src/utils/highlight_lane.py) to a complete pipeline of how the lane highlight is drawn on top of the image, the steps are the following:
+See also [test highlight lane.py](src/test_highlight_lane.py) and  and [utils/hghlight lane.py](src/utils/highlight_lane.py) to see a complete pipeline of how the lane highlight is drawn on top of the image, the steps are the following:
 - Undistorting the image using `undistort(img)`
 - Extract threshold and bird-eye view using `pipeline(img)`
 - Detect the lanes and generate the highlight polygon using `detect_lanes(img)`
@@ -148,9 +152,14 @@ This is the result:
 
 #### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
-Check the full video pipeline in [generate video.py](src/generate_video.py). In order to keep state between frames and organizing the video pipeline methods I created the class [LaneProcessor](src/utils/lane_processor.py). I also created the class [Lane](src/utils/lane.py) that keeps some of the state required for the improved lane detection and adds the helper methods for smoothing the results.
+Check the full video pipeline in [generate video.py](src/generate_video.py).
 
-Here's a [link to my video result](./output_video.mp4)
+In order to keep a state between frames and organizing the video pipeline methods I created the class [LaneProcessor](src/utils/lane_processor.py).  
+I also created the class [Lane](src/utils/lane.py) that keeps some of the state required for the improved lane detection and adds the helper methods for smoothing the results.
+
+![alt text][image8]
+
+Here's a [link to the full video result](./output_video.mp4)
 
 ---
 
@@ -160,15 +169,17 @@ Here's a [link to my video result](./output_video.mp4)
 
 As I mentioned before, I believe the key in this whole process is the binary threshold. 
 
-I achieved good enough results for the exercice video, but they won't work for the challenge videos. There might be a way to fine-tune the tresholding so it works better in different light/weather conditions, but this has it's limitations on how muche we're able to generalize and will eventually fail.
+I achieved good enough results for the exercice video, but they won't work for the challenge videos. There might be a way to fine-tune the tresholding so it works better in different light/weather conditions, but this has it's limitations on how much we're able to generalize and will eventually fail.
 
 Also, this whole image processing is very slow, if we needed to detect the lanes in real-time we would need a faster way.
 
-I believe that a possible approach for this would be using deep learning for feature extraction, if we had labeled images with the lane highlisted in various light/weather conditions we could train a model to predict where the lane is in a much optimal way that what we can achieve using only computer vision.
+I believe that a possible approach for this would be using deep learning for feature extraction, if we had labeled images in various light/weather conditions we could train a model to predict where the lane is in a much optimal way that what we can achieve using only computer vision.
 
-#### A note about the smoothing:   
-I averaged the last 4 frames to smooth the lanes, this works well for this exercice but won't work in real life because of the lag.   
-For this exercice though I noticed an interesting effect of this: when the can goes through some bumps, the image's vertical shift changes. When performing the birds-eye transform we asume the vertical shift is the same, though the lane lines should be parallel but when it changes the lanes won't be parallel anymore so the readings will be off. 
-The smoothing accidentally corrects for this, giving an actually more acurate depiction of the road if the shift hadn't changed, but because it has for a few milliseconds it seems like the highlighted lane is not quite right, when it actually is!
+##### A note about the smoothing:
+I did a simple smoothing solution, at first I thought about doing a moving average filter, but I tried this and the results were good enough. A posible improvement could be attempting to use the MAF but I don't expect the results to improve significantly.
+   
+My asolution was averaging the last 4 frames to smooth the lanes, this works well for this exercice but won't work in real life because of the lag it adds.   
+For this exercice though I noticed an interesting effect of this: when the car goes through some bumps, the image's vertical tilt changes. When performing the birds-eye transform we asume the vertical tilt is the same, so the lane lines should be parallel, but when it's not the same the lanes won't be parallel anymore so the readings will be off. 
+The smoothing accidentally corrects for this vertical tilting, giving actually a more acurate depiction of the road (what we should see if there was no vertical tilting), but because of this it, sometimes, seems like the highlighted lane is not quite fitted, when it actually is!
 
 Thanks for reading, it took me a lot of effort to finish this in such a short ammount of time so a lot of assumptions might be wrong and a lot of things could be improved, if you find this by accident and have some suggestion pleas create an issue in the repo! 
