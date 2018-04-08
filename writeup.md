@@ -66,7 +66,7 @@ If we apply the distortion correction to the road images, the effect is much les
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
 I created the [test thresholded.py](src/test_thresholded.py) to be able to see how this threshold affects the test images. 
-Check also [utils/highlight lane.py](src/utils/highlight_lane.py) to see the thresold values I used.
+Check also the method `thresholded_binary_image` in [utils/image pipeline.py](src/utils/image_pipeline.py) to see the thresold values I used.
 
 I did a lof of testing around this step, because it's the more important of the whole pipeline. If we manage to filter out everything except for the lane lines, the rest of the pipeline will work seamlessly.
 
